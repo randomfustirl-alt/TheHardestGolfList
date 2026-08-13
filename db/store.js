@@ -120,7 +120,7 @@ async function initDb() {
       console.log('⚡ [DB] Connected to Turso Cloud (SQLite at the Edge) successfully!');
       return;
     } catch (err) {
-      console.error('❌ [DB] Turso connection failed, checking MongoDB fallback:', err.message);
+      console.error('❌ [DB] Turso connection failed:', err);
       isTurso = false;
     }
   }
