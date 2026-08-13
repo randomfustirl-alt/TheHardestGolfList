@@ -12,7 +12,7 @@ async function getDb() {
   if (db) return db;
 
   // Ensure data directory exists
-  const dataDir = path.join(__dirname, '..', 'data');
+  const dataDir = path.dirname(DB_PATH);
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
   // Load sql.js
