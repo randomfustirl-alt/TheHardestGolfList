@@ -13,7 +13,6 @@ function getLeaderboard(searchQuery = '') {
     FROM users u
     LEFT JOIN completions c ON c.user_id = u.id
     LEFT JOIN levels l ON c.level_id = l.id
-    WHERE u.role = 'user'
   `;
   const params = [];
   if (searchQuery) {
@@ -33,7 +32,7 @@ function getLeaderboard(searchQuery = '') {
 router.get('/', (req, res) => {
   const topLevel = get('SELECT * FROM levels ORDER BY rank ASC LIMIT 1');
   const totalLevels = get('SELECT COUNT(*) as count FROM levels');
-  const totalPlayers = get("SELECT COUNT(*) as count FROM users WHERE role = 'user'");
+  const totalPlayers = get("SELECT COUNT(*) as count FROM users");
   const totalClears = get('SELECT COUNT(*) as count FROM completions');
 
   res.render('home', {

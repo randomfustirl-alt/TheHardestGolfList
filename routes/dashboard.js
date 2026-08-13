@@ -22,7 +22,6 @@ router.get('/dashboard', requireLogin, (req, res) => {
     FROM users u
     LEFT JOIN completions c ON c.user_id = u.id
     LEFT JOIN levels l ON c.level_id = l.id
-    WHERE u.role = 'user'
     GROUP BY u.id
     ORDER BY total_points DESC, verified_clears DESC, u.created_at ASC
   `);

@@ -41,7 +41,7 @@ app.use('/', require('./routes/auth'));
 app.use('/', require('./routes/pages'));
 app.use('/', require('./routes/levels'));
 app.use('/', require('./routes/players'));
-app.use('/dashboard', require('./routes/dashboard'));
+app.use('/', require('./routes/dashboard'));
 app.use('/admin', require('./routes/admin'));
 
 // 404

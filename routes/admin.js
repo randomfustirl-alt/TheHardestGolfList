@@ -10,7 +10,7 @@ router.use(requireAdmin);
 // GET /admin
 router.get('/', (req, res) => {
   const levels = all('SELECT l.*, (SELECT COUNT(*) FROM completions c WHERE c.level_id = l.id) as clear_count FROM levels l ORDER BY l.rank ASC');
-  const players = all("SELECT id, username, display_name FROM users WHERE role = 'user' ORDER BY display_name ASC");
+  const players = all("SELECT id, username, display_name FROM users ORDER BY display_name ASC");
   const recentCompletions = all(`
     SELECT c.*, u.display_name as player_name, u.username, l.name as level_name, l.points
     FROM completions c
