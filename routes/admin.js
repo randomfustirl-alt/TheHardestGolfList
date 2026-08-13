@@ -10,7 +10,16 @@ router.use(requireAdmin);
 // GET /admin
 router.get('/', (req, res) => {
   const levels = all('SELECT l.*, (SELECT COUNT(*) FROM completions c WHERE c.level_id = l.id) as clear_count FROM levels l ORDER BY l.rank ASC');
-  const players = all("SELECT id, username, display_name FROM users ORDER BY display_name ASC");
+  const players = all(`
+    SELECT u.id, u.username, u.display_name, u.role, u.created_at,
+           COALESCE(SUM(l.points), 0) AS total_points,
+           COUNT(c.id) AS verified_clears
+    FROM users u
+    LEFT JOIN completions c ON c.user_id = u.id
+    LEFT JOIN levels l ON c.level_id = l.id
+    GROUP BY u.id
+    ORDER BY u.display_name ASC
+  `);
   const recentCompletions = all(`
     SELECT c.*, u.display_name as player_name, u.username, l.name as level_name, l.points
     FROM completions c
@@ -192,6 +201,32 @@ router.post('/completion/:id/revoke', (req, res) => {
   req.session.flash = {
     type: 'success',
     message: `Revoked "${completion.level_name}" clear for ${completion.player_name}. (-${completion.points} pts)`,
+  };
+  res.redirect('/admin');
+});
+
+// POST /admin/user/:id/delete — Delete a user account and all their records
+router.post('/user/:id/delete', (req, res) => {
+  const targetUser = get('SELECT * FROM users WHERE id = ?', [req.params.id]);
+
+  if (!targetUser) {
+    req.session.flash = { type: 'error', message: 'User not found.' };
+    return res.redirect('/admin');
+  }
+
+  // Prevent deleting ListMaker / self-deletion
+  if (targetUser.username === 'listmaker' || targetUser.id === req.user.id) {
+    req.session.flash = { type: 'error', message: 'The primary ListMaker account cannot be deleted.' };
+    return res.redirect('/admin');
+  }
+
+  // Delete all user's completions and user profile
+  run('DELETE FROM completions WHERE user_id = ?', [targetUser.id]);
+  run('DELETE FROM users WHERE id = ?', [targetUser.id]);
+
+  req.session.flash = {
+    type: 'success',
+    message: `User account "${targetUser.display_name}" (@${targetUser.username}) and all associated records deleted.`,
   };
   res.redirect('/admin');
 });

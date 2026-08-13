@@ -138,6 +138,58 @@
         </div>
       <% } %>
     </div>
+
+    <!-- Registered Accounts & Data Management Section -->
+    <div class="admin-section">
+      <div class="admin-section__header">
+        <h2 class="admin-section__title">Registered Users & Account Control (<%= players.length %>)</h2>
+      </div>
+
+      <% if (players.length > 0) { %>
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Username</th>
+              <th>Role</th>
+              <th>Total Points</th>
+              <th>Verified Clears</th>
+              <th style="text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% players.forEach(p => { %>
+              <tr>
+                <td><strong><%= p.display_name %></strong></td>
+                <td><a href="/player/<%= p.username %>" class="text-navy">@<%= p.username %></a></td>
+                <td>
+                  <% if (p.role === 'admin') { %>
+                    <span class="badge" style="background: rgba(26,31,61,0.1); color: var(--navy);">Admin</span>
+                  <% } else { %>
+                    <span class="badge" style="background: rgba(184,242,61,0.15); color: var(--navy-dark);">User</span>
+                  <% } %>
+                </td>
+                <td><strong><%= formatPoints(p.total_points) %> pts</strong></td>
+                <td><%= p.verified_clears %> clears</td>
+                <td style="text-align: right;">
+                  <% if (p.username !== 'listmaker' && p.id !== user.id) { %>
+                    <form action="/admin/user/<%= p.id %>/delete" method="POST" onsubmit="return confirm('PERMANENT ACTION: Delete user account @<%= p.username %> and ALL their completion data?');" style="display: inline;">
+                      <button type="submit" class="btn btn--danger">Delete Account & Data</button>
+                    </form>
+                  <% } else { %>
+                    <span class="text-faint" style="font-size: 0.75rem;">Protected</span>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } else { %>
+        <div class="empty-state" style="padding: 2rem 0;">
+          <div class="empty-state__title">No registered users</div>
+        </div>
+      <% } %>
+    </div>
   </div>
 </div>
 
