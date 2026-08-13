@@ -62,9 +62,15 @@ async function initDb() {
   // 1. Try Turso Cloud (SQLite at the Edge)
   if (tursoUrl && tursoToken) {
     try {
+      // Ensure protocol is clean for @libsql/client
+      let cleanUrl = tursoUrl.trim();
+      if (cleanUrl.startsWith('libsql://')) {
+        cleanUrl = cleanUrl.replace('libsql://', 'https://');
+      }
+
       turso = createClient({
-        url: tursoUrl,
-        authToken: tursoToken
+        url: cleanUrl,
+        authToken: tursoToken.trim()
       });
 
       // Create Tables
