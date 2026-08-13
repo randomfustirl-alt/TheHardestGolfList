@@ -51,8 +51,20 @@ git push -u origin main
    - **Plan**: `Free`
 5. Click **Create Web Service**.
 
-> [!TIP]
-> Render will automatically build your app and give you a public URL (e.g. `https://level-list.onrender.com`). Every time you push changes to GitHub, Render will update your site automatically!
+### How to Keep Data Saved Permanently Across Website Updates
+
+Free cloud servers (like Render) restart with clean code every time you update your site on GitHub. To make sure your levels, registered users, and verified completions **are NEVER deleted or reset**:
+
+1. On your Render dashboard (`https://dashboard.render.com`), go to your service `thehardestgolflist`.
+2. Click **Disks** on the left menu → Click **Add Disk**.
+3. Set:
+   - **Name**: `levellist-data`
+   - **Mount Path**: `/opt/render/project/src/data`
+   - **Size**: `1 GB` (Free)
+4. Click **Save Changes**.
+
+> [!IMPORTANT]
+> Mounting this disk ensures `data/levellist.db` stays permanently on the server disk. Every user registration, level addition, and point update will persist forever across website restarts and code updates!
 
 ---
 

@@ -6,7 +6,7 @@ const path = require('path');
 let db;
 let SQL;
 
-const DB_PATH = path.join(__dirname, '..', 'data', 'levellist.db');
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'levellist.db');
 
 async function getDb() {
   if (db) return db;
