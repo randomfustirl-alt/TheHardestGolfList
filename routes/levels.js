@@ -4,8 +4,8 @@ const router = express.Router();
 const { getLevelById, getCompletionsForLevel } = require('../db/store');
 
 // GET /level/:id
-router.get('/level/:id', (req, res) => {
-  const level = getLevelById(req.params.id);
+router.get('/level/:id', async (req, res) => {
+  const level = await getLevelById(req.params.id);
   if (!level) {
     return res.status(404).render('error', {
       title: 'Level Not Found',
@@ -14,7 +14,7 @@ router.get('/level/:id', (req, res) => {
     });
   }
 
-  const completions = getCompletionsForLevel(level.id);
+  const completions = await getCompletionsForLevel(level.id);
 
   res.render('level-detail', {
     title: `${level.name} — LEVEL/LIST`,

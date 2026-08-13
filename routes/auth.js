@@ -23,7 +23,7 @@ router.post('/login', async (req, res) => {
     });
   }
 
-  const user = getUserByUsername(trimUser);
+  const user = await getUserByUsername(trimUser);
   if (!user) {
     return res.render('login', {
       title: 'Sign In — LEVEL/LIST',
@@ -92,7 +92,7 @@ router.post('/register', async (req, res) => {
   }
 
   // Check username availability
-  const existing = getUserByUsername(trimUser);
+  const existing = await getUserByUsername(trimUser);
   if (existing) {
     return res.render('register', {
       title: 'Join the List — LEVEL/LIST',
@@ -104,7 +104,7 @@ router.post('/register', async (req, res) => {
   // Hash and insert
   const hash = await bcrypt.hash(password, 12);
   const displayName = trimUser.charAt(0).toUpperCase() + trimUser.slice(1);
-  const userId = createUser(trimUser, displayName, hash, 'user');
+  const userId = await createUser(trimUser, displayName, hash, 'user');
 
   req.session.userId = userId;
   res.redirect('/dashboard');

@@ -5,13 +5,13 @@ const { requireLogin } = require('../middleware/auth');
 const { getLeaderboard, getCompletionsForUser } = require('../db/store');
 
 // GET /dashboard
-router.get('/dashboard', requireLogin, (req, res) => {
+router.get('/dashboard', requireLogin, async (req, res) => {
   const userId = req.user.id;
 
-  const completions = getCompletionsForUser(userId);
+  const completions = await getCompletionsForUser(userId);
   const total_points = completions.reduce((sum, c) => sum + (c.points || 0), 0);
 
-  const leaderboard = getLeaderboard();
+  const leaderboard = await getLeaderboard();
   const found = leaderboard.find(p => p.id === userId);
   const myRank = found ? found.rank : null;
   const totalPlayers = leaderboard.length;

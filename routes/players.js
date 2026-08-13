@@ -4,9 +4,9 @@ const router = express.Router();
 const { getUserByUsername, getLeaderboard, getCompletionsForUser } = require('../db/store');
 
 // GET /player/:username
-router.get('/player/:username', (req, res) => {
+router.get('/player/:username', async (req, res) => {
   const username = req.params.username.toLowerCase();
-  const player = getUserByUsername(username);
+  const player = await getUserByUsername(username);
 
   if (!player) {
     return res.status(404).render('error', {
@@ -16,10 +16,10 @@ router.get('/player/:username', (req, res) => {
     });
   }
 
-  const completions = getCompletionsForUser(player.id);
+  const completions = await getCompletionsForUser(player.id);
   const total_points = completions.reduce((sum, c) => sum + (c.points || 0), 0);
 
-  const leaderboard = getLeaderboard();
+  const leaderboard = await getLeaderboard();
   const found = leaderboard.find(p => p.id === player.id);
   const playerRank = found ? found.rank : null;
 

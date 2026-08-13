@@ -2,16 +2,19 @@
 const { getUserById } = require('../db/store');
 
 // Attach logged-in user to req.user and res.locals.user on every request
-function attachUser(req, res, next) {
+async function attachUser(req, res, next) {
   res.locals.user = null;
   if (req.session && req.session.userId) {
-    const user = getUserById(req.session.userId);
-    if (user) {
-      req.user = user;
-      res.locals.user = user;
-    } else {
-      // Session references deleted user — clear it
-      req.session.destroy(() => {});
+    try {
+      const user = await getUserById(req.session.userId);
+      if (user) {
+        req.user = user;
+        res.locals.user = user;
+      } else {
+        req.session.destroy(() => {});
+      }
+    } catch (e) {
+      console.error('Error attaching user:', e);
     }
   }
   next();

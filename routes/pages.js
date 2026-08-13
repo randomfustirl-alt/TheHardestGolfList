@@ -4,9 +4,9 @@ const router = express.Router();
 const { getTopLevel, getStats, getAllLevels, getDifficulties, getLeaderboard } = require('../db/store');
 
 // GET /
-router.get('/', (req, res) => {
-  const topLevel = getTopLevel();
-  const stats = getStats();
+router.get('/', async (req, res) => {
+  const topLevel = await getTopLevel();
+  const stats = await getStats();
 
   res.render('home', {
     title: 'LEVEL/LIST — The Public Ranking of Impossible Levels',
@@ -16,13 +16,13 @@ router.get('/', (req, res) => {
 });
 
 // GET /list
-router.get('/list', (req, res) => {
+router.get('/list', async (req, res) => {
   const search = (req.query.q || '').trim();
   const difficulty = req.query.difficulty || '';
   const sort = req.query.sort || 'rank';
 
-  const levels = getAllLevels(search, difficulty, sort);
-  const difficulties = getDifficulties();
+  const levels = await getAllLevels(search, difficulty, sort);
+  const difficulties = await getDifficulties();
 
   res.render('list', {
     title: 'The List — LEVEL/LIST',
@@ -35,9 +35,9 @@ router.get('/list', (req, res) => {
 });
 
 // GET /leaderboard
-router.get('/leaderboard', (req, res) => {
+router.get('/leaderboard', async (req, res) => {
   const search = (req.query.q || '').trim();
-  const players = getLeaderboard(search);
+  const players = await getLeaderboard(search);
 
   res.render('leaderboard', {
     title: 'Leaderboard — LEVEL/LIST',
@@ -47,9 +47,9 @@ router.get('/leaderboard', (req, res) => {
 });
 
 // GET /players
-router.get('/players', (req, res) => {
+router.get('/players', async (req, res) => {
   const search = (req.query.q || '').trim();
-  const players = getLeaderboard(search);
+  const players = await getLeaderboard(search);
 
   res.render('players', {
     title: 'Players — LEVEL/LIST',

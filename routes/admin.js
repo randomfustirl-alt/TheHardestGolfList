@@ -21,10 +21,10 @@ const {
 router.use(requireAdmin);
 
 // GET /admin
-router.get('/', (req, res) => {
-  const levels = getAllLevels();
-  const players = getAllUsers();
-  const recentCompletions = getRecentCompletions(20);
+router.get('/', async (req, res) => {
+  const levels = await getAllLevels();
+  const players = await getAllUsers();
+  const recentCompletions = await getRecentCompletions(20);
 
   res.render('admin', {
     title: 'Admin — LEVEL/LIST',
@@ -37,8 +37,9 @@ router.get('/', (req, res) => {
 });
 
 // GET /admin/level/new
-router.get('/level/new', (req, res) => {
-  const nextRank = getMaxLevelRank() + 1;
+router.get('/level/new', async (req, res) => {
+  const maxRank = await getMaxLevelRank();
+  const nextRank = maxRank + 1;
 
   res.render('admin-level-form', {
     title: 'New Level — LEVEL/LIST',
@@ -49,11 +50,12 @@ router.get('/level/new', (req, res) => {
 });
 
 // POST /admin/level
-router.post('/level', (req, res) => {
+router.post('/level', async (req, res) => {
   const { name, rank, difficulty, points, creator, verifier, description } = req.body;
 
   if (!name || !rank || !difficulty || !points || !creator || !verifier) {
-    const nextRank = getMaxLevelRank() + 1;
+    const maxRank = await getMaxLevelRank();
+    const nextRank = maxRank + 1;
     return res.render('admin-level-form', {
       title: 'New Level — LEVEL/LIST',
       level: null,
@@ -62,15 +64,15 @@ router.post('/level', (req, res) => {
     });
   }
 
-  createLevel({ name, rank, difficulty, points, creator, verifier, description });
+  await createLevel({ name, rank, difficulty, points, creator, verifier, description });
 
   req.session.flash = { type: 'success', message: `Level "${name}" added at rank #${rank}.` };
   res.redirect('/admin');
 });
 
 // GET /admin/level/:id/edit
-router.get('/level/:id/edit', (req, res) => {
-  const level = getLevelById(req.params.id);
+router.get('/level/:id/edit', async (req, res) => {
+  const level = await getLevelById(req.params.id);
   if (!level) return res.redirect('/admin');
 
   res.render('admin-level-form', {
@@ -82,8 +84,8 @@ router.get('/level/:id/edit', (req, res) => {
 });
 
 // POST /admin/level/:id
-router.post('/level/:id', (req, res) => {
-  const level = getLevelById(req.params.id);
+router.post('/level/:id', async (req, res) => {
+  const level = await getLevelById(req.params.id);
   if (!level) return res.redirect('/admin');
 
   const { name, rank, difficulty, points, creator, verifier, description } = req.body;
@@ -97,25 +99,25 @@ router.post('/level/:id', (req, res) => {
     });
   }
 
-  updateLevel(level.id, { name, rank, difficulty, points, creator, verifier, description });
+  await updateLevel(level.id, { name, rank, difficulty, points, creator, verifier, description });
 
   req.session.flash = { type: 'success', message: `Level "${name}" updated.` };
   res.redirect('/admin');
 });
 
 // POST /admin/level/:id/delete
-router.post('/level/:id/delete', (req, res) => {
-  const level = getLevelById(req.params.id);
+router.post('/level/:id/delete', async (req, res) => {
+  const level = await getLevelById(req.params.id);
   if (!level) return res.redirect('/admin');
 
-  deleteLevel(level.id);
+  await deleteLevel(level.id);
 
   req.session.flash = { type: 'success', message: `Level "${level.name}" deleted.` };
   res.redirect('/admin');
 });
 
 // POST /admin/completion — add a verified completion
-router.post('/completion', (req, res) => {
+router.post('/completion', async (req, res) => {
   const { user_id, level_id, notes } = req.body;
 
   if (!user_id || !level_id) {
@@ -123,15 +125,15 @@ router.post('/completion', (req, res) => {
     return res.redirect('/admin');
   }
 
-  const user = getUserById(user_id);
-  const level = getLevelById(level_id);
+  const user = await getUserById(user_id);
+  const level = await getLevelById(level_id);
 
   if (!user || !level) {
     req.session.flash = { type: 'error', message: 'Invalid player or level.' };
     return res.redirect('/admin');
   }
 
-  const result = createCompletion(user.id, level.id, 'ListMaker', notes);
+  const result = await createCompletion(user.id, level.id, 'ListMaker', notes);
   if (!result) {
     req.session.flash = { type: 'error', message: `${user.display_name} has already completed "${level.name}".` };
     return res.redirect('/admin');
@@ -142,8 +144,8 @@ router.post('/completion', (req, res) => {
 });
 
 // POST /admin/completion/:id/revoke
-router.post('/completion/:id/revoke', (req, res) => {
-  const comp = deleteCompletion(req.params.id);
+router.post('/completion/:id/revoke', async (req, res) => {
+  const comp = await deleteCompletion(req.params.id);
 
   if (!comp) {
     req.session.flash = { type: 'error', message: 'Completion not found.' };
@@ -158,8 +160,8 @@ router.post('/completion/:id/revoke', (req, res) => {
 });
 
 // POST /admin/user/:id/delete — Delete a user account and all their records
-router.post('/user/:id/delete', (req, res) => {
-  const targetUser = getUserById(req.params.id);
+router.post('/user/:id/delete', async (req, res) => {
+  const targetUser = await getUserById(req.params.id);
 
   if (!targetUser) {
     req.session.flash = { type: 'error', message: 'User not found.' };
@@ -172,7 +174,7 @@ router.post('/user/:id/delete', (req, res) => {
     return res.redirect('/admin');
   }
 
-  deleteUser(targetUser.id);
+  await deleteUser(targetUser.id);
 
   req.session.flash = {
     type: 'success',
