@@ -16,7 +16,7 @@ function getLeaderboard(searchQuery = '') {
   `;
   const params = [];
   if (searchQuery) {
-    sql += ` AND (LOWER(u.username) LIKE ? OR LOWER(u.display_name) LIKE ?)`;
+    sql += ` WHERE (LOWER(u.username) LIKE ? OR LOWER(u.display_name) LIKE ?)`;
     params.push(`%${searchQuery.toLowerCase()}%`, `%${searchQuery.toLowerCase()}%`);
   }
   sql += `
