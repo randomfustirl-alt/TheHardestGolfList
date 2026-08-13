@@ -104,10 +104,21 @@ router.post('/register', async (req, res) => {
   // Hash and insert
   const hash = await bcrypt.hash(password, 12);
   const displayName = trimUser.charAt(0).toUpperCase() + trimUser.slice(1);
-  const userId = await createUser(trimUser, displayName, hash, 'user');
-
-  req.session.userId = userId;
-  res.redirect('/dashboard');
+  
+  try {
+    const userId = await createUser(trimUser, displayName, hash, 'user');
+    req.session.userId = userId;
+    res.redirect('/dashboard');
+  } catch (err) {
+    if (err.message && err.message.includes('UNIQUE constraint failed')) {
+      return res.render('register', {
+        title: 'Join the List — LEVEL/LIST',
+        error: 'That username is already taken.',
+        formData: { username: trimUser },
+      });
+    }
+    throw err;
+  }
 });
 
 // POST /logout
