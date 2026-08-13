@@ -1,55 +1,17 @@
-// db/store.js — Dual Engine: MongoDB Cloud (Primary) + Local JSON Fallback
+// db/store.js — Multi-Engine: Turso Cloud (Primary) + MongoDB + Local JSON Fallback
 const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
+const { createClient } = require('@libsql/client');
 const mongoose = require('mongoose');
 
-// Mongoose Schemas for MongoDB
-const userSchema = new mongoose.Schema({
-  id: { type: Number, required: true, unique: true },
-  username: { type: String, required: true, unique: true, lowercase: true },
-  display_name: { type: String, required: true },
-  password_hash: { type: String, required: true },
-  role: { type: String, default: 'user' },
-  created_at: { type: Date, default: Date.now }
-});
-
-const levelSchema = new mongoose.Schema({
-  id: { type: Number, required: true, unique: true },
-  rank: { type: Number, required: true },
-  name: { type: String, required: true },
-  difficulty: { type: String, required: true },
-  points: { type: Number, required: true },
-  creator: { type: String, required: true },
-  verifier: { type: String, required: true },
-  description: { type: String, default: '' },
-  date_added: { type: Date, default: Date.now }
-});
-
-const completionSchema = new mongoose.Schema({
-  id: { type: Number, required: true, unique: true },
-  user_id: { type: Number, required: true },
-  level_id: { type: Number, required: true },
-  verified_by: { type: String, default: 'ListMaker' },
-  notes: { type: String, default: '' },
-  completed_at: { type: Date, default: Date.now }
-});
-
-const metaSchema = new mongoose.Schema({
-  key: { type: String, required: true, unique: true },
-  nextIds: {
-    users: { type: Number, default: 1 },
-    levels: { type: Number, default: 1 },
-    completions: { type: Number, default: 1 }
-  }
-});
-
-let UserDoc, LevelDoc, CompletionDoc, MetaDoc;
+let turso = null;
+let isTurso = false;
+let isMongo = false;
 
 // Local JSON Fallback Setup
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const DATA_FILE = path.join(DATA_DIR, 'db.json');
-let isMongo = false;
 let memoryData = null;
 
 function ensureDataFile() {
@@ -85,7 +47,7 @@ function ensureDataFile() {
 }
 
 function saveData() {
-  if (!memoryData || isMongo) return;
+  if (!memoryData || isTurso || isMongo) return;
   try {
     fs.writeFileSync(DATA_FILE, JSON.stringify(memoryData, null, 2), 'utf8');
   } catch (err) {
@@ -94,45 +56,70 @@ function saveData() {
 }
 
 async function initDb() {
-  const mongoUri = process.env.MONGODB_URI;
+  const tursoUrl = process.env.TURSO_DATABASE_URL;
+  const tursoToken = process.env.TURSO_AUTH_TOKEN;
 
-  if (mongoUri) {
+  // 1. Try Turso Cloud (SQLite at the Edge)
+  if (tursoUrl && tursoToken) {
     try {
-      await mongoose.connect(mongoUri);
-      isMongo = true;
-      UserDoc = mongoose.model('User', userSchema);
-      LevelDoc = mongoose.model('Level', levelSchema);
-      CompletionDoc = mongoose.model('Completion', completionSchema);
-      MetaDoc = mongoose.model('Meta', metaSchema);
+      turso = createClient({
+        url: tursoUrl,
+        authToken: tursoToken
+      });
 
-      let meta = await MetaDoc.findOne({ key: 'app_meta' });
-      if (!meta) {
-        meta = await MetaDoc.create({ key: 'app_meta', nextIds: { users: 1, levels: 1, completions: 1 } });
-      }
+      // Create Tables
+      await turso.execute(`CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        display_name TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT DEFAULT 'user',
+        created_at TEXT DEFAULT (datetime('now'))
+      )`);
 
-      let listMaker = await UserDoc.findOne({ username: 'listmaker' });
-      if (!listMaker) {
+      await turso.execute(`CREATE TABLE IF NOT EXISTS levels (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rank INTEGER UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        difficulty TEXT NOT NULL,
+        points INTEGER NOT NULL,
+        creator TEXT NOT NULL,
+        verifier TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        date_added TEXT DEFAULT (datetime('now'))
+      )`);
+
+      await turso.execute(`CREATE TABLE IF NOT EXISTS completions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        level_id INTEGER NOT NULL,
+        verified_by TEXT DEFAULT 'ListMaker',
+        notes TEXT DEFAULT '',
+        completed_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(user_id, level_id)
+      )`);
+
+      // Auto-seed ListMaker
+      const existing = await turso.execute({ sql: 'SELECT id FROM users WHERE username = ?', args: ['listmaker'] });
+      if (existing.rows.length === 0) {
         const hash = await bcrypt.hash('!ListMaker69$', 12);
-        await UserDoc.create({
-          id: meta.nextIds.users++,
-          username: 'listmaker',
-          display_name: 'ListMaker',
-          password_hash: hash,
-          role: 'admin',
-          created_at: new Date()
+        await turso.execute({
+          sql: 'INSERT INTO users (username, display_name, password_hash, role) VALUES (?, ?, ?, ?)',
+          args: ['listmaker', 'ListMaker', hash, 'admin']
         });
-        await meta.save();
-        console.log('[DB] MongoDB Cloud: ListMaker admin account created.');
+        console.log('[DB] Turso Cloud: ListMaker admin account created.');
       }
-      console.log('✅ [DB] Connected to MongoDB Cloud successfully!');
+
+      isTurso = true;
+      console.log('⚡ [DB] Connected to Turso Cloud (SQLite at the Edge) successfully!');
       return;
     } catch (err) {
-      console.error('❌ [DB] MongoDB connection failed, falling back to local JSON store:', err.message);
-      isMongo = false;
+      console.error('❌ [DB] Turso connection failed, checking MongoDB fallback:', err.message);
+      isTurso = false;
     }
   }
 
-  // Local JSON fallback
+  // 2. Local JSON fallback
   ensureDataFile();
   let listMaker = memoryData.users.find(u => u.username === 'listmaker');
   if (!listMaker) {
@@ -149,47 +136,44 @@ async function initDb() {
     saveData();
     console.log('[DB] Local JSON: ListMaker admin account created.');
   }
-  console.log(`ℹ️ [DB] Running on Local JSON Store (${memoryData.levels.length} levels, ${memoryData.users.length} users). Set MONGODB_URI to use cloud database.`);
+  console.log(`ℹ️ [DB] Running on Local JSON Store (${memoryData.levels.length} levels, ${memoryData.users.length} users). Set TURSO_DATABASE_URL & TURSO_AUTH_TOKEN for cloud database.`);
 }
 
 // User Helpers
 async function getUserById(id) {
-  if (isMongo) {
-    const u = await UserDoc.findOne({ id: Number(id) });
-    return u ? u.toObject() : null;
+  const uid = Number(id);
+  if (isTurso) {
+    const res = await turso.execute({ sql: 'SELECT * FROM users WHERE id = ?', args: [uid] });
+    return res.rows.length > 0 ? res.rows[0] : null;
   }
   ensureDataFile();
-  return memoryData.users.find(u => u.id === Number(id)) || null;
+  return memoryData.users.find(u => u.id === uid) || null;
 }
 
 async function getUserByUsername(username) {
   if (!username) return null;
-  if (isMongo) {
-    const u = await UserDoc.findOne({ username: username.toLowerCase() });
-    return u ? u.toObject() : null;
+  const uname = username.toLowerCase();
+  if (isTurso) {
+    const res = await turso.execute({ sql: 'SELECT * FROM users WHERE username = ?', args: [uname] });
+    return res.rows.length > 0 ? res.rows[0] : null;
   }
   ensureDataFile();
-  return memoryData.users.find(u => u.username === username.toLowerCase()) || null;
+  return memoryData.users.find(u => u.username === uname) || null;
 }
 
 async function getAllUsers() {
-  if (isMongo) {
-    const users = await UserDoc.find().lean();
-    const completions = await CompletionDoc.find().lean();
-    const levels = await LevelDoc.find().lean();
-
-    return users.map(u => {
-      const uComps = completions.filter(c => c.user_id === u.id);
-      const total_points = uComps.reduce((sum, c) => {
-        const lvl = levels.find(l => l.id === c.level_id);
-        return sum + (lvl ? lvl.points : 0);
-      }, 0);
-      return {
-        ...u,
-        total_points,
-        verified_clears: uComps.length
-      };
-    }).sort((a, b) => a.display_name.localeCompare(b.display_name));
+  if (isTurso) {
+    const res = await turso.execute(`
+      SELECT u.id, u.username, u.display_name, u.role, u.created_at,
+             COALESCE(SUM(l.points), 0) AS total_points,
+             COUNT(c.id) AS verified_clears
+      FROM users u
+      LEFT JOIN completions c ON c.user_id = u.id
+      LEFT JOIN levels l ON c.level_id = l.id
+      GROUP BY u.id
+      ORDER BY u.display_name ASC
+    `);
+    return res.rows;
   }
   ensureDataFile();
   return memoryData.users.map(u => {
@@ -207,24 +191,18 @@ async function getAllUsers() {
 }
 
 async function createUser(username, displayName, passwordHash, role = 'user') {
-  if (isMongo) {
-    const meta = await MetaDoc.findOne({ key: 'app_meta' });
-    const newId = meta.nextIds.users++;
-    await meta.save();
-    const u = await UserDoc.create({
-      id: newId,
-      username: username.toLowerCase(),
-      display_name: displayName,
-      password_hash: passwordHash,
-      role,
-      created_at: new Date()
+  const uname = username.toLowerCase();
+  if (isTurso) {
+    const res = await turso.execute({
+      sql: 'INSERT INTO users (username, display_name, password_hash, role) VALUES (?, ?, ?, ?) RETURNING id',
+      args: [uname, displayName, passwordHash, role]
     });
-    return u.id;
+    return res.rows.length > 0 ? res.rows[0].id : Number(res.lastInsertRowid);
   }
   ensureDataFile();
   const newUser = {
     id: memoryData.nextIds.users++,
-    username: username.toLowerCase(),
+    username: uname,
     display_name: displayName,
     password_hash: passwordHash,
     role,
@@ -237,9 +215,11 @@ async function createUser(username, displayName, passwordHash, role = 'user') {
 
 async function deleteUser(id) {
   const uid = Number(id);
-  if (isMongo) {
-    await UserDoc.deleteOne({ id: uid });
-    await CompletionDoc.deleteMany({ user_id: uid });
+  if (isTurso) {
+    await turso.batch([
+      { sql: 'DELETE FROM completions WHERE user_id = ?', args: [uid] },
+      { sql: 'DELETE FROM users WHERE id = ?', args: [uid] }
+    ]);
     return;
   }
   ensureDataFile();
@@ -250,27 +230,46 @@ async function deleteUser(id) {
 
 // Level Helpers
 async function getLevelById(id) {
-  if (isMongo) {
-    const l = await LevelDoc.findOne({ id: Number(id) });
-    return l ? l.toObject() : null;
+  const lid = Number(id);
+  if (isTurso) {
+    const res = await turso.execute({ sql: 'SELECT * FROM levels WHERE id = ?', args: [lid] });
+    return res.rows.length > 0 ? res.rows[0] : null;
   }
   ensureDataFile();
-  return memoryData.levels.find(l => l.id === Number(id)) || null;
+  return memoryData.levels.find(l => l.id === lid) || null;
 }
 
 async function getAllLevels(search = '', difficulty = '', sort = 'rank') {
-  let levels, completions;
-  if (isMongo) {
-    levels = await LevelDoc.find().lean();
-    completions = await CompletionDoc.find().lean();
-  } else {
-    ensureDataFile();
-    levels = memoryData.levels;
-    completions = memoryData.completions;
+  if (isTurso) {
+    let sql = 'SELECT l.*, (SELECT COUNT(*) FROM completions c WHERE c.level_id = l.id) as clear_count FROM levels l WHERE 1=1';
+    const args = [];
+    if (search) {
+      sql += ' AND (LOWER(l.name) LIKE ? OR LOWER(l.creator) LIKE ? OR LOWER(l.verifier) LIKE ?)';
+      const q = `%${search.toLowerCase()}%`;
+      args.push(q, q, q);
+    }
+    if (difficulty) {
+      sql += ' AND l.difficulty = ?';
+      args.push(difficulty);
+    }
+
+    const sortMap = {
+      rank: 'l.rank ASC',
+      points_desc: 'l.points DESC',
+      points_asc: 'l.points ASC',
+      name: 'l.name ASC',
+      clears: 'clear_count DESC',
+      newest: 'l.date_added DESC'
+    };
+    sql += ` ORDER BY ${sortMap[sort] || 'l.rank ASC'}`;
+
+    const res = await turso.execute({ sql, args });
+    return res.rows;
   }
 
-  let result = levels.map(l => {
-    const clear_count = completions.filter(c => c.level_id === l.id).length;
+  ensureDataFile();
+  let result = memoryData.levels.map(l => {
+    const clear_count = memoryData.completions.filter(c => c.level_id === l.id).length;
     return { ...l, clear_count };
   });
 
@@ -303,50 +302,39 @@ async function getTopLevel() {
 }
 
 async function getMaxLevelRank() {
-  let levels;
-  if (isMongo) {
-    levels = await LevelDoc.find().lean();
-  } else {
-    ensureDataFile();
-    levels = memoryData.levels;
+  if (isTurso) {
+    const res = await turso.execute('SELECT MAX(rank) as maxRank FROM levels');
+    return res.rows.length > 0 && res.rows[0].maxRank ? Number(res.rows[0].maxRank) : 0;
   }
-  if (levels.length === 0) return 0;
-  return Math.max(...levels.map(l => l.rank));
+  ensureDataFile();
+  if (memoryData.levels.length === 0) return 0;
+  return Math.max(...memoryData.levels.map(l => l.rank));
 }
 
 async function getDifficulties() {
-  let levels;
-  if (isMongo) {
-    levels = await LevelDoc.find().lean();
-  } else {
-    ensureDataFile();
-    levels = memoryData.levels;
+  if (isTurso) {
+    const res = await turso.execute('SELECT DISTINCT difficulty FROM levels ORDER BY difficulty ASC');
+    return res.rows.map(r => r.difficulty);
   }
-  const set = new Set(levels.map(l => l.difficulty));
+  ensureDataFile();
+  const set = new Set(memoryData.levels.map(l => l.difficulty));
   return Array.from(set).sort();
 }
 
 async function createLevel({ rank, name, difficulty, points, creator, verifier, description }) {
   const r = Number(rank);
 
-  if (isMongo) {
-    await LevelDoc.updateMany({ rank: { $gte: r } }, { $inc: { rank: 1 } });
-    const meta = await MetaDoc.findOne({ key: 'app_meta' });
-    const newId = meta.nextIds.levels++;
-    await meta.save();
-
-    const lvl = await LevelDoc.create({
-      id: newId,
-      rank: r,
-      name: name.trim(),
-      difficulty,
-      points: Number(points),
-      creator: creator.trim(),
-      verifier: verifier.trim(),
-      description: (description || '').trim(),
-      date_added: new Date()
+  if (isTurso) {
+    await turso.execute({
+      sql: 'UPDATE levels SET rank = rank + 1 WHERE rank >= ?',
+      args: [r]
     });
-    return lvl.id;
+
+    const res = await turso.execute({
+      sql: 'INSERT INTO levels (rank, name, difficulty, points, creator, verifier, description) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id',
+      args: [r, name.trim(), difficulty, Number(points), creator.trim(), verifier.trim(), (description || '').trim()]
+    });
+    return res.rows.length > 0 ? res.rows[0].id : Number(res.lastInsertRowid);
   }
 
   ensureDataFile();
@@ -375,27 +363,28 @@ async function updateLevel(id, { rank, name, difficulty, points, creator, verifi
   const levelId = Number(id);
   const newRank = Number(rank);
 
-  if (isMongo) {
-    const level = await LevelDoc.findOne({ id: levelId });
-    if (!level) return false;
+  if (isTurso) {
+    const current = await getLevelById(levelId);
+    if (!current) return false;
 
-    if (newRank !== level.rank) {
-      if (newRank < level.rank) {
-        await LevelDoc.updateMany({ id: { $ne: levelId }, rank: { $gte: newRank, $lt: level.rank } }, { $inc: { rank: 1 } });
+    if (newRank !== current.rank) {
+      if (newRank < current.rank) {
+        await turso.execute({
+          sql: 'UPDATE levels SET rank = rank + 1 WHERE rank >= ? AND rank < ? AND id != ?',
+          args: [newRank, current.rank, levelId]
+        });
       } else {
-        await LevelDoc.updateMany({ id: { $ne: levelId }, rank: { $gt: level.rank, $lte: newRank } }, { $inc: { rank: -1 } });
+        await turso.execute({
+          sql: 'UPDATE levels SET rank = rank - 1 WHERE rank > ? AND rank <= ? AND id != ?',
+          args: [current.rank, newRank, levelId]
+        });
       }
     }
 
-    level.rank = newRank;
-    level.name = name.trim();
-    level.difficulty = difficulty;
-    level.points = Number(points);
-    level.creator = creator.trim();
-    level.verifier = verifier.trim();
-    level.description = (description || '').trim();
-
-    await level.save();
+    await turso.execute({
+      sql: 'UPDATE levels SET rank = ?, name = ?, difficulty = ?, points = ?, creator = ?, verifier = ?, description = ? WHERE id = ?',
+      args: [newRank, name.trim(), difficulty, Number(points), creator.trim(), verifier.trim(), (description || '').trim(), levelId]
+    });
     return true;
   }
 
@@ -429,9 +418,11 @@ async function updateLevel(id, { rank, name, difficulty, points, creator, verifi
 
 async function deleteLevel(id) {
   const levelId = Number(id);
-  if (isMongo) {
-    await LevelDoc.deleteOne({ id: levelId });
-    await CompletionDoc.deleteMany({ level_id: levelId });
+  if (isTurso) {
+    await turso.batch([
+      { sql: 'DELETE FROM completions WHERE level_id = ?', args: [levelId] },
+      { sql: 'DELETE FROM levels WHERE id = ?', args: [levelId] }
+    ]);
     return;
   }
   ensureDataFile();
@@ -443,69 +434,83 @@ async function deleteLevel(id) {
 // Completion Helpers
 async function getCompletionsForLevel(levelId) {
   const lid = Number(levelId);
-  let completions, users;
-  if (isMongo) {
-    completions = await CompletionDoc.find({ level_id: lid }).lean();
-    users = await UserDoc.find().lean();
-  } else {
-    ensureDataFile();
-    completions = memoryData.completions.filter(c => c.level_id === lid);
-    users = memoryData.users;
+  if (isTurso) {
+    const res = await turso.execute({
+      sql: `SELECT c.*, u.username, u.display_name
+            FROM completions c
+            JOIN users u ON c.user_id = u.id
+            WHERE c.level_id = ?
+            ORDER BY c.completed_at ASC`,
+      args: [lid]
+    });
+    return res.rows;
   }
 
-  return completions.map(c => {
-    const user = users.find(u => u.id === c.user_id);
-    return {
-      ...c,
-      username: user ? user.username : 'deleted',
-      display_name: user ? user.display_name : 'Deleted User'
-    };
-  }).sort((a, b) => new Date(a.completed_at) - new Date(b.completed_at));
+  ensureDataFile();
+  return memoryData.completions
+    .filter(c => c.level_id === lid)
+    .map(c => {
+      const user = memoryData.users.find(u => u.id === c.user_id);
+      return {
+        ...c,
+        username: user ? user.username : 'deleted',
+        display_name: user ? user.display_name : 'Deleted User'
+      };
+    })
+    .sort((a, b) => new Date(a.completed_at) - new Date(b.completed_at));
 }
 
 async function getCompletionsForUser(userId) {
   const uid = Number(userId);
-  let completions, levels;
-  if (isMongo) {
-    completions = await CompletionDoc.find({ user_id: uid }).lean();
-    levels = await LevelDoc.find().lean();
-  } else {
-    ensureDataFile();
-    completions = memoryData.completions.filter(c => c.user_id === uid);
-    levels = memoryData.levels;
+  if (isTurso) {
+    const res = await turso.execute({
+      sql: `SELECT c.*, l.name as level_name, l.difficulty, l.points, l.rank as level_rank
+            FROM completions c
+            JOIN levels l ON c.level_id = l.id
+            WHERE c.user_id = ?
+            ORDER BY c.completed_at DESC`,
+      args: [uid]
+    });
+    return res.rows;
   }
 
-  return completions.map(c => {
-    const level = levels.find(l => l.id === c.level_id);
-    return {
-      ...c,
-      level_name: level ? level.name : 'Deleted Level',
-      difficulty: level ? level.difficulty : 'Unknown',
-      points: level ? level.points : 0,
-      level_rank: level ? level.rank : 999
-    };
-  }).sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
+  ensureDataFile();
+  return memoryData.completions
+    .filter(c => c.user_id === uid)
+    .map(c => {
+      const level = memoryData.levels.find(l => l.id === c.level_id);
+      return {
+        ...c,
+        level_name: level ? level.name : 'Deleted Level',
+        difficulty: level ? level.difficulty : 'Unknown',
+        points: level ? level.points : 0,
+        level_rank: level ? level.rank : 999
+      };
+    })
+    .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
 }
 
 async function getRecentCompletions(limit = 20) {
-  let completions, users, levels;
-  if (isMongo) {
-    completions = await CompletionDoc.find().lean();
-    users = await UserDoc.find().lean();
-    levels = await LevelDoc.find().lean();
-  } else {
-    ensureDataFile();
-    completions = memoryData.completions;
-    users = memoryData.users;
-    levels = memoryData.levels;
+  if (isTurso) {
+    const res = await turso.execute({
+      sql: `SELECT c.*, u.display_name as player_name, u.username, l.name as level_name, l.points
+            FROM completions c
+            JOIN users u ON c.user_id = u.id
+            JOIN levels l ON c.level_id = l.id
+            ORDER BY c.completed_at DESC
+            LIMIT ?`,
+      args: [limit]
+    });
+    return res.rows;
   }
 
-  return [...completions]
+  ensureDataFile();
+  return [...memoryData.completions]
     .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
     .slice(0, limit)
     .map(c => {
-      const user = users.find(u => u.id === c.user_id);
-      const level = levels.find(l => l.id === c.level_id);
+      const user = memoryData.users.find(u => u.id === c.user_id);
+      const level = memoryData.levels.find(l => l.id === c.level_id);
       return {
         ...c,
         player_name: user ? user.display_name : 'Deleted User',
@@ -520,23 +525,18 @@ async function createCompletion(userId, levelId, verifiedBy = 'ListMaker', notes
   const uid = Number(userId);
   const lid = Number(levelId);
 
-  if (isMongo) {
-    const exists = await CompletionDoc.findOne({ user_id: uid, level_id: lid });
-    if (exists) return null;
-
-    const meta = await MetaDoc.findOne({ key: 'app_meta' });
-    const newId = meta.nextIds.completions++;
-    await meta.save();
-
-    const comp = await CompletionDoc.create({
-      id: newId,
-      user_id: uid,
-      level_id: lid,
-      verified_by: verifiedBy,
-      notes: (notes || '').trim(),
-      completed_at: new Date()
+  if (isTurso) {
+    const existing = await turso.execute({
+      sql: 'SELECT id FROM completions WHERE user_id = ? AND level_id = ?',
+      args: [uid, lid]
     });
-    return comp.id;
+    if (existing.rows.length > 0) return null;
+
+    const res = await turso.execute({
+      sql: 'INSERT INTO completions (user_id, level_id, verified_by, notes) VALUES (?, ?, ?, ?) RETURNING id',
+      args: [uid, lid, verifiedBy, (notes || '').trim()]
+    });
+    return res.rows.length > 0 ? res.rows[0].id : Number(res.lastInsertRowid);
   }
 
   ensureDataFile();
@@ -560,20 +560,19 @@ async function createCompletion(userId, levelId, verifiedBy = 'ListMaker', notes
 async function deleteCompletion(id) {
   const cid = Number(id);
 
-  if (isMongo) {
-    const comp = await CompletionDoc.findOne({ id: cid });
-    if (!comp) return null;
-
-    const user = await UserDoc.findOne({ id: comp.user_id });
-    const level = await LevelDoc.findOne({ id: comp.level_id });
-    await CompletionDoc.deleteOne({ id: cid });
-
-    return {
-      ...comp.toObject(),
-      player_name: user ? user.display_name : 'User',
-      level_name: level ? level.name : 'Level',
-      points: level ? level.points : 0
-    };
+  if (isTurso) {
+    const res = await turso.execute({
+      sql: `SELECT c.*, u.display_name as player_name, l.name as level_name, l.points
+            FROM completions c
+            JOIN users u ON c.user_id = u.id
+            JOIN levels l ON c.level_id = l.id
+            WHERE c.id = ?`,
+      args: [cid]
+    });
+    if (res.rows.length === 0) return null;
+    const comp = res.rows[0];
+    await turso.execute({ sql: 'DELETE FROM completions WHERE id = ?', args: [cid] });
+    return comp;
   }
 
   ensureDataFile();
@@ -595,22 +594,35 @@ async function deleteCompletion(id) {
 
 // Leaderboard Helper
 async function getLeaderboard(searchQuery = '') {
-  let users, completions, levels;
-  if (isMongo) {
-    users = await UserDoc.find().lean();
-    completions = await CompletionDoc.find().lean();
-    levels = await LevelDoc.find().lean();
-  } else {
-    ensureDataFile();
-    users = memoryData.users;
-    completions = memoryData.completions;
-    levels = memoryData.levels;
+  if (isTurso) {
+    let sql = `
+      SELECT
+        u.id, u.username, u.display_name, u.role, u.created_at,
+        COALESCE(SUM(l.points), 0) AS total_points,
+        COUNT(c.id) AS verified_clears
+      FROM users u
+      LEFT JOIN completions c ON c.user_id = u.id
+      LEFT JOIN levels l ON c.level_id = l.id
+    `;
+    const args = [];
+    if (searchQuery) {
+      sql += ' WHERE (LOWER(u.username) LIKE ? OR LOWER(u.display_name) LIKE ?)';
+      const q = `%${searchQuery.toLowerCase()}%`;
+      args.push(q, q);
+    }
+    sql += `
+      GROUP BY u.id
+      ORDER BY total_points DESC, verified_clears DESC, u.created_at ASC
+    `;
+    const res = await turso.execute({ sql, args });
+    return res.rows.map((row, index) => ({ ...row, rank: index + 1 }));
   }
 
-  let list = users.map(u => {
-    const uComps = completions.filter(c => c.user_id === u.id);
+  ensureDataFile();
+  let list = memoryData.users.map(u => {
+    const uComps = memoryData.completions.filter(c => c.user_id === u.id);
     const total_points = uComps.reduce((sum, c) => {
-      const lvl = levels.find(l => l.id === c.level_id);
+      const lvl = memoryData.levels.find(l => l.id === c.level_id);
       return sum + (lvl ? lvl.points : 0);
     }, 0);
 
@@ -643,13 +655,15 @@ async function getLeaderboard(searchQuery = '') {
 }
 
 async function getStats() {
-  if (isMongo) {
-    const [lCount, pCount, cCount] = await Promise.all([
-      LevelDoc.countDocuments(),
-      UserDoc.countDocuments(),
-      CompletionDoc.countDocuments()
-    ]);
-    return { levels: lCount, players: pCount, clears: cCount };
+  if (isTurso) {
+    const lRes = await turso.execute('SELECT COUNT(*) as count FROM levels');
+    const pRes = await turso.execute('SELECT COUNT(*) as count FROM users');
+    const cRes = await turso.execute('SELECT COUNT(*) as count FROM completions');
+    return {
+      levels: Number(lRes.rows[0].count),
+      players: Number(pRes.rows[0].count),
+      clears: Number(cRes.rows[0].count)
+    };
   }
   ensureDataFile();
   return {
