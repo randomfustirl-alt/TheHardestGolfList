@@ -1,0 +1,70 @@
+<%- include('partials/head') %>
+<%- include('partials/nav', { activePage: '' }) %>
+
+<div class="profile">
+  <div class="container">
+    <div class="profile__header">
+      <%- include('partials/avatar', { name: player.display_name, username: player.username, size: 'xl' }) %>
+
+      <div class="profile__info">
+        <h1 class="profile__display"><%= player.display_name %></h1>
+        <div class="profile__username">@<%= player.username %></div>
+
+        <div class="profile__stats-row">
+          <div class="profile__stat">
+            <div class="profile__stat-value">#<%= playerRank ? playerRank : '—' %></div>
+            <div class="profile__stat-label">Rank</div>
+          </div>
+          <div class="profile__stat">
+            <div class="profile__stat-value"><%= formatPoints(stats.total_points) %></div>
+            <div class="profile__stat-label">Total Points</div>
+          </div>
+          <div class="profile__stat">
+            <div class="profile__stat-value"><%= stats.verified_clears %></div>
+            <div class="profile__stat-label">Verified Clears</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <div class="info-card__title">VERIFIED COMPLETIONS (<%= completions.length %>)</div>
+
+      <% if (completions.length > 0) { %>
+        <table class="completions-table">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Level Name</th>
+              <th>Difficulty</th>
+              <th>Points Earned</th>
+              <th>Date Verified</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% completions.forEach(c => { %>
+              <tr>
+                <td>#<%= padRank(c.level_rank) %></td>
+                <td>
+                  <a href="/level/<%= c.level_id %>" class="player-link">
+                    <strong><%= c.level_name %></strong>
+                  </a>
+                </td>
+                <td><span class="badge <%= difficultyClass(c.difficulty) %>"><%= c.difficulty %></span></td>
+                <td><strong>+<%= formatPoints(c.points) %> pts</strong></td>
+                <td><span class="text-faint"><%= formatDate(c.completed_at) %></span></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } else { %>
+        <div class="empty-state" style="padding: 3rem 0;">
+          <div class="empty-state__title">No verified clears</div>
+          <div class="empty-state__desc">This player has not had any level completions verified yet.</div>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

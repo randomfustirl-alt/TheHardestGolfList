@@ -1,0 +1,78 @@
+<%- include('partials/head') %>
+<%- include('partials/nav', { activePage: 'leaderboard' }) %>
+
+<div class="page-header">
+  <div class="container">
+    <div class="label page-header__label">STANDING · ALL-TIME POINTS</div>
+    <h1 class="page-header__heading">The people to beat.</h1>
+    <p class="page-header__desc">Official player leaderboard sorted strictly by total verified points accumulated from completed levels.</p>
+    <div class="divider"></div>
+  </div>
+</div>
+
+<div class="container">
+  <form action="/leaderboard" method="GET" class="filter-bar">
+    <div class="filter-bar__search">
+      <svg class="filter-bar__search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input type="text" name="q" class="input" placeholder="Search player by name or username..." value="<%= search %>">
+    </div>
+  </form>
+
+  <div class="leaderboard">
+    <% if (players.length > 0) { %>
+      <div class="leaderboard__header">
+        <div>Rank</div>
+        <div>Player</div>
+        <div>Total Points</div>
+        <div>Verified Clears</div>
+        <div>Movement</div>
+      </div>
+
+      <% players.forEach(p => { %>
+        <% 
+          let rankClass = '';
+          if (p.rank === 1) rankClass = 'player-row__rank--gold';
+          else if (p.rank === 2) rankClass = 'player-row__rank--silver';
+          else if (p.rank === 3) rankClass = 'player-row__rank--bronze';
+          
+          let rowClass = '';
+          if (p.rank === 1) rowClass = 'player-row--top1';
+          else if (p.rank === 2) rowClass = 'player-row--top2';
+        %>
+        <a href="/player/<%= p.username %>" class="player-row <%= rowClass %>">
+          <div class="player-row__rank-wrap">
+            <div class="player-row__rank <%= rankClass %>">#<%= p.rank %></div>
+          </div>
+
+          <div class="player-row__identity">
+            <%- include('partials/avatar', { name: p.display_name, username: p.username, size: 'md' }) %>
+            <div class="player-row__names">
+              <div class="player-row__display"><%= p.display_name %></div>
+              <div class="player-row__username">@<%= p.username %></div>
+            </div>
+          </div>
+
+          <div class="player-row__pts"><%= formatPoints(p.total_points) %><span class="player-row__pts-unit">pts</span></div>
+          <div class="player-row__clears"><%= p.verified_clears %> clears</div>
+          <div>
+            <span class="movement movement--same">—</span>
+          </div>
+        </a>
+      <% }) %>
+    <% } else { %>
+      <div class="empty-state">
+        <svg class="empty-state__icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="8" r="5"></circle>
+          <path d="M20 21a8 8 0 1 0-16 0"></path>
+        </svg>
+        <div class="empty-state__title">No players found</div>
+        <div class="empty-state__desc">There are no players registered or no players matched your search.</div>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

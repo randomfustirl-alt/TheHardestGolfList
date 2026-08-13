@@ -1,0 +1,76 @@
+<%- include('partials/head') %>
+<%- include('partials/nav', { activePage: 'dashboard' }) %>
+
+<div class="dashboard">
+  <div class="container">
+    <div class="page-header" style="padding-top: 0; border-bottom: none;">
+      <div class="label page-header__label">PERSONAL DASHBOARD</div>
+      <h1 class="page-header__heading">Welcome back, <%= user.display_name %>.</h1>
+      <p class="page-header__desc">Track your stats, recent verified completions, and your standing on the public record.</p>
+    </div>
+
+    <div class="dashboard__grid">
+      <div>
+        <div class="dash-stat-card dash-stat-card--navy">
+          <div class="dash-stat-card__label">GLOBAL RANK</div>
+          <div class="dash-stat-card__value">#<%= myRank ? myRank : '—' %></div>
+          <div class="dash-stat-card__sub">Out of <%= totalPlayers %> players</div>
+        </div>
+
+        <div class="dash-stat-card">
+          <div class="dash-stat-card__label">TOTAL POINTS</div>
+          <div class="dash-stat-card__value"><%= formatPoints(stats.total_points) %></div>
+          <div class="dash-stat-card__sub">Earned from verified clears</div>
+        </div>
+
+        <div class="dash-stat-card">
+          <div class="dash-stat-card__label">VERIFIED CLEARS</div>
+          <div class="dash-stat-card__value"><%= stats.verified_clears %></div>
+          <div class="dash-stat-card__sub">Completed levels</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="info-card">
+          <div class="info-card__title">MY COMPLETED LEVELS (<%= completions.length %>)</div>
+
+          <% if (completions.length > 0) { %>
+            <table class="completions-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Level Name</th>
+                  <th>Difficulty</th>
+                  <th>Points</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% completions.forEach(c => { %>
+                  <tr>
+                    <td>#<%= padRank(c.level_rank) %></td>
+                    <td>
+                      <a href="/level/<%= c.level_id %>" class="player-link">
+                        <strong><%= c.level_name %></strong>
+                      </a>
+                    </td>
+                    <td><span class="badge <%= difficultyClass(c.difficulty) %>"><%= c.difficulty %></span></td>
+                    <td><strong>+<%= formatPoints(c.points) %> pts</strong></td>
+                    <td><span class="text-faint"><%= formatDate(c.completed_at) %></span></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          <% } else { %>
+            <div class="empty-state" style="padding: 3rem 0;">
+              <div class="empty-state__title">No completions recorded yet</div>
+              <div class="empty-state__desc">When ListMaker verifies your level completions, they will appear here and your point total will automatically increase.</div>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

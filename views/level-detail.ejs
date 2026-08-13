@@ -1,0 +1,91 @@
+<%- include('partials/head') %>
+<%- include('partials/nav', { activePage: 'list' }) %>
+
+<div class="level-detail">
+  <div class="container">
+    <div class="level-detail__header">
+      <div>
+        <div class="level-detail__rank">RANK #<%= padRank(level.rank) %></div>
+        <h1 class="level-detail__name"><%= level.name %></h1>
+        <div class="level-detail__badges">
+          <span class="badge <%= difficultyClass(level.difficulty) %>"><%= level.difficulty %></span>
+        </div>
+      </div>
+
+      <div class="level-detail__pts-card">
+        <div class="level-detail__pts-label">POINT VALUE</div>
+        <div class="level-detail__pts-value"><%= formatPoints(level.points) %> <span class="level-detail__pts-unit">pts</span></div>
+      </div>
+    </div>
+
+    <div class="level-detail__grid">
+      <div>
+        <div class="info-card">
+          <div class="info-card__title">VERIFIED COMPLETION HISTORY (<%= completions.length %>)</div>
+          
+          <% if (completions.length > 0) { %>
+            <table class="completions-table">
+              <thead>
+                <tr>
+                  <th>Player</th>
+                  <th>Verified By</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% completions.forEach(c => { %>
+                  <tr>
+                    <td>
+                      <a href="/player/<%= c.username %>" class="player-link">
+                        <%- include('partials/avatar', { name: c.display_name, username: c.username, size: 'sm' }) %>
+                        <span><%= c.display_name %></span>
+                      </a>
+                    </td>
+                    <td><span class="text-muted"><%= c.verified_by %></span></td>
+                    <td><span class="text-faint"><%= formatDate(c.completed_at) %></span></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          <% } else { %>
+            <div class="empty-state" style="padding: 2rem 0;">
+              <div class="empty-state__title">No verified clears yet</div>
+              <div class="empty-state__desc">Be the first to conquer this level and claim <%= formatPoints(level.points) %> points!</div>
+            </div>
+          <% } %>
+        </div>
+      </div>
+
+      <div>
+        <div class="info-card">
+          <div class="info-card__title">LEVEL INFORMATION</div>
+          <div class="info-row">
+            <span class="info-row__label">Creator</span>
+            <span class="info-row__value"><%= level.creator %></span>
+          </div>
+          <div class="info-row">
+            <span class="info-row__label">Verifier</span>
+            <span class="info-row__value"><%= level.verifier %></span>
+          </div>
+          <div class="info-row">
+            <span class="info-row__label">Date Added</span>
+            <span class="info-row__value"><%= formatDate(level.date_added) %></span>
+          </div>
+          <div class="info-row">
+            <span class="info-row__label">Verified Clears</span>
+            <span class="info-row__value"><%= completions.length %></span>
+          </div>
+          
+          <% if (level.description) { %>
+            <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+              <span class="info-row__label" style="display: block; margin-bottom: 0.5rem;">Description</span>
+              <p class="level-desc"><%= level.description %></p>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

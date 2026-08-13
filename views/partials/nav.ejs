@@ -1,0 +1,60 @@
+<nav class="nav">
+  <div class="nav__inner">
+    <a href="/" class="nav__brand">
+      <svg class="nav__logo" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="18" cy="18" r="18" fill="#1A1F3D"/>
+        <rect x="10" y="18" width="4" height="10" rx="1" fill="#B8F23D"/>
+        <rect x="16" y="12" width="4" height="16" rx="1" fill="#B8F23D"/>
+        <rect x="22" y="8" width="4" height="20" rx="1" fill="#B8F23D"/>
+      </svg>
+      <span class="nav__wordmark">LEVEL<span>/</span>LIST</span>
+    </a>
+
+    <div class="nav__links">
+      <a href="/list" class="nav__link <%= typeof activePage !== 'undefined' && activePage === 'list' ? 'nav__link--active' : '' %>">The List</a>
+      <a href="/leaderboard" class="nav__link <%= typeof activePage !== 'undefined' && activePage === 'leaderboard' ? 'nav__link--active' : '' %>">Leaderboard</a>
+      <a href="/players" class="nav__link <%= typeof activePage !== 'undefined' && activePage === 'players' ? 'nav__link--active' : '' %>">Players</a>
+      <% if (user && user.role === 'admin') { %>
+        <a href="/admin" class="nav__link <%= typeof activePage !== 'undefined' && activePage === 'admin' ? 'nav__link--active' : '' %>">Admin</a>
+      <% } %>
+    </div>
+
+    <div class="nav__spacer"></div>
+
+    <div class="nav__actions">
+      <% if (user) { %>
+        <a href="/dashboard" class="nav__link <%= typeof activePage !== 'undefined' && activePage === 'dashboard' ? 'nav__link--active' : '' %>">Dashboard</a>
+        <form action="/logout" method="POST" style="display: inline;">
+          <button type="submit" class="btn btn--outline btn--sm">Sign Out</button>
+        </form>
+      <% } else { %>
+        <a href="/login" class="nav__sign-in">Sign in</a>
+        <a href="/register" class="btn btn--lime">Join the list</a>
+      <% } %>
+    </div>
+
+    <button class="nav__hamburger" id="nav-hamburger" aria-label="Toggle navigation">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+  </div>
+
+  <div class="nav__mobile" id="nav-mobile">
+    <a href="/list" class="nav__link <%= typeof activePage !== 'undefined' && activePage === 'list' ? 'nav__link--active' : '' %>">The List</a>
+    <a href="/leaderboard" class="nav__link <%= typeof activePage !== 'undefined' && activePage === 'leaderboard' ? 'nav__link--active' : '' %>">Leaderboard</a>
+    <a href="/players" class="nav__link <%= typeof activePage !== 'undefined' && activePage === 'players' ? 'nav__link--active' : '' %>">Players</a>
+    <% if (user && user.role === 'admin') { %>
+      <a href="/admin" class="nav__link <%= typeof activePage !== 'undefined' && activePage === 'admin' ? 'nav__link--active' : '' %>">Admin</a>
+    <% } %>
+    <% if (user) { %>
+      <a href="/dashboard" class="nav__link <%= typeof activePage !== 'undefined' && activePage === 'dashboard' ? 'nav__link--active' : '' %>">Dashboard</a>
+      <form action="/logout" method="POST" style="margin-top: 0.5rem;">
+        <button type="submit" class="btn btn--outline btn--full">Sign Out</button>
+      </form>
+    <% } else { %>
+      <a href="/login" class="nav__link">Sign in</a>
+      <a href="/register" class="btn btn--lime btn--full" style="margin-top: 0.5rem;">Join the list</a>
+    <% } %>
+  </div>
+</nav>

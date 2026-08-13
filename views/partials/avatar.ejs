@@ -1,0 +1,8 @@
+<%
+  const initials = avatarInitials(name);
+  const hue = avatarHue(username);
+  const sizeClass = typeof size !== 'undefined' ? `avatar--${size}` : 'avatar--md';
+%>
+<div class="avatar <%= sizeClass %>" style="background-color: hsl(<%= hue %>, 60%, 40%);">
+  <%= initials %>
+</div>

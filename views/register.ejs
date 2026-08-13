@@ -1,0 +1,41 @@
+<%- include('partials/head') %>
+<%- include('partials/nav', { activePage: '' }) %>
+
+<div class="auth-page">
+  <div class="container">
+    <div class="auth-card">
+      <h1 class="auth-card__heading">Join the list</h1>
+      <p class="auth-card__sub">Create a public profile to record your verified completions.</p>
+
+      <% if (error) { %>
+        <div class="alert alert--error"><%= error %></div>
+      <% } %>
+
+      <form action="/register" method="POST">
+        <div class="form-group">
+          <label class="form-label" for="username">Username</label>
+          <input type="text" id="username" name="username" class="form-input" placeholder="e.g. player1" value="<%= formData.username || '' %>" required autofocusPattern="[a-zA-Z0-9_]{3,20}">
+          <div class="form-hint">3–20 characters, alphanumeric or underscores</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input type="password" id="password" name="password" class="form-input" placeholder="Minimum 8 characters" minlength="8" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="confirm_password">Confirm Password</label>
+          <input type="password" id="confirm_password" name="confirm_password" class="form-input" placeholder="Re-enter password" minlength="8" required>
+        </div>
+
+        <button type="submit" class="btn btn--lime btn--full" style="margin-top: 1.5rem;">Create Account</button>
+      </form>
+
+      <div class="auth-divider">
+        Already have an account? <a href="/login">Sign in</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

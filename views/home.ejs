@@ -1,0 +1,71 @@
+<%- include('partials/head') %>
+<%- include('partials/nav', { activePage: 'home' }) %>
+
+<main class="hero">
+  <div class="container hero__inner">
+    <div class="hero__content">
+      <div class="label hero__label">
+        <span class="label__dot"></span>
+        LIVE VERIFIED RANKINGS
+      </div>
+      
+      <h1 class="hero__heading">
+        How high <span class="lime">can you</span> climb?
+      </h1>
+      
+      <p class="hero__desc">
+        Level List is the public record of impossible things. Discover the hardest levels, verify your completions, and find your place in the signal.
+      </p>
+
+      <div class="hero__actions">
+        <a href="/list" class="btn btn--navy btn--lg">Explore the list</a>
+        <a href="/leaderboard" class="btn btn--outline btn--lg">See the leaderboard</a>
+      </div>
+    </div>
+
+    <div class="hero__card-wrap">
+      <div class="hero__card-deco"></div>
+      <div class="ranking-card">
+        <div class="ranking-card__deco-circle"></div>
+        <div class="ranking-card__deco-circle2"></div>
+        
+        <div class="ranking-card__label">CURRENT THRESHOLD</div>
+        
+        <% if (topLevel) { %>
+          <div class="ranking-card__rank">#<%= padRank(topLevel.rank) %></div>
+          <div class="ranking-card__name"><%= topLevel.name %></div>
+          <div class="ranking-card__diff"><%= topLevel.difficulty %> Demon</div>
+          <div class="ranking-card__divider"></div>
+          <div class="ranking-card__pts-label">POINT VALUE</div>
+          <div class="ranking-card__pts"><%= formatPoints(topLevel.points) %><span class="ranking-card__pts-unit">pts</span></div>
+        <% } else { %>
+          <div class="ranking-card__rank">#001</div>
+          <div class="ranking-card__empty-name">No Levels Yet</div>
+          <div class="ranking-card__diff">List Initializing...</div>
+          <div class="ranking-card__divider"></div>
+          <div class="ranking-card__pts-label">THRESHOLD</div>
+          <div class="ranking-card__pts">0<span class="ranking-card__pts-unit">pts</span></div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</main>
+
+<section class="stats-bar">
+  <div class="container stats-bar__inner">
+    <div class="stat-item">
+      <div class="stat-item__value"><%= stats.levels %></div>
+      <div class="stat-item__label">Ranked Levels</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-item__value"><%= stats.players %></div>
+      <div class="stat-item__label">Active Players</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-item__value"><%= stats.clears %></div>
+      <div class="stat-item__label">Verified Clears</div>
+    </div>
+  </div>
+</section>
+
+<%- include('partials/footer') %>

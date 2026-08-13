@@ -1,0 +1,144 @@
+<%- include('partials/head') %>
+<%- include('partials/nav', { activePage: 'admin' }) %>
+
+<div class="admin-page">
+  <div class="container">
+    <div class="page-header" style="padding-top: 0; border-bottom: none; margin-bottom: 2rem;">
+      <div class="label page-header__label">ADMINISTRATION PANEL</div>
+      <h1 class="page-header__heading">ListMaker Control Center</h1>
+      <p class="page-header__desc">Manage levels, point values, ranks, and verify player completions.</p>
+    </div>
+
+    <% if (flash) { %>
+      <div class="alert alert--<%= flash.type %>"><%= flash.message %></div>
+    <% } %>
+
+    <!-- Add Verified Completion Section -->
+    <div class="admin-section">
+      <div class="admin-section__header">
+        <h2 class="admin-section__title">Verify Player Completion</h2>
+      </div>
+
+      <% if (players.length > 0 && levels.length > 0) { %>
+        <form action="/admin/completion" method="POST" class="admin-form-row">
+          <div class="form-group">
+            <label class="form-label" for="user_id">Select Player</label>
+            <select name="user_id" id="user_id" class="select" style="width: 100%;" required>
+              <option value="">-- Select Player --</option>
+              <% players.forEach(p => { %>
+                <option value="<%= p.id %>"><%= p.display_name %> (@<%= p.username %>)</option>
+              <% }) %>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="level_id">Select Level</label>
+            <select name="level_id" id="level_id" class="select" style="width: 100%;" required>
+              <option value="">-- Select Level --</option>
+              <% levels.forEach(l => { %>
+                <option value="<%= l.id %>">#<%= padRank(l.rank) %> <%= l.name %> (<%= formatPoints(l.points) %> pts)</option>
+              <% }) %>
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn--lime">Verify Clear (+Points)</button>
+        </form>
+      <% } else { %>
+        <p class="text-muted">You need at least 1 registered player and 1 level to record completions.</p>
+      <% } %>
+    </div>
+
+    <!-- Levels Management Section -->
+    <div class="admin-section">
+      <div class="admin-section__header">
+        <h2 class="admin-section__title">Ranked Levels (<%= levels.length %>)</h2>
+        <a href="/admin/level/new" class="btn btn--navy btn--sm">+ Add New Level</a>
+      </div>
+
+      <% if (levels.length > 0) { %>
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Name</th>
+              <th>Difficulty</th>
+              <th>Points</th>
+              <th>Creator</th>
+              <th>Verifier</th>
+              <th>Clears</th>
+              <th style="text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% levels.forEach(l => { %>
+              <tr>
+                <td><strong>#<%= padRank(l.rank) %></strong></td>
+                <td><a href="/level/<%= l.id %>" class="text-navy" style="font-weight: 700;"><%= l.name %></a></td>
+                <td><span class="badge <%= difficultyClass(l.difficulty) %>"><%= l.difficulty %></span></td>
+                <td><strong><%= formatPoints(l.points) %></strong></td>
+                <td><%= l.creator %></td>
+                <td><%= l.verifier %></td>
+                <td><%= l.clear_count %></td>
+                <td style="text-align: right;">
+                  <div class="actions" style="justify-content: flex-end;">
+                    <a href="/admin/level/<%= l.id %>/edit" class="btn btn--edit">Edit</a>
+                    <form action="/admin/level/<%= l.id %>/delete" method="POST" onsubmit="return confirm('Are you sure you want to delete this level?');" style="display: inline;">
+                      <button type="submit" class="btn btn--danger">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } else { %>
+        <div class="empty-state" style="padding: 2rem 0;">
+          <div class="empty-state__title">No levels added yet</div>
+          <div class="empty-state__desc">Click "+ Add New Level" above to add the first level to the list.</div>
+        </div>
+      <% } %>
+    </div>
+
+    <!-- Recent Verified Completions Section -->
+    <div class="admin-section">
+      <div class="admin-section__header">
+        <h2 class="admin-section__title">Recent Verified Completions</h2>
+      </div>
+
+      <% if (recentCompletions.length > 0) { %>
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>Level</th>
+              <th>Points Added</th>
+              <th>Date</th>
+              <th style="text-align: right;">Revoke</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% recentCompletions.forEach(c => { %>
+              <tr>
+                <td><strong><%= c.player_name %></strong> (@<%= c.username %>)</td>
+                <td><%= c.level_name %></td>
+                <td><strong class="text-lime">+<%= formatPoints(c.points) %> pts</strong></td>
+                <td><span class="text-faint"><%= formatDate(c.completed_at) %></span></td>
+                <td style="text-align: right;">
+                  <form action="/admin/completion/<%= c.id %>/revoke" method="POST" onsubmit="return confirm('Revoke this completion? Points will be automatically removed.');" style="display: inline;">
+                    <button type="submit" class="btn btn--danger">Revoke Clear</button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } else { %>
+        <div class="empty-state" style="padding: 2rem 0;">
+          <div class="empty-state__title">No completions recorded</div>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

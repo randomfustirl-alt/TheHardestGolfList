@@ -1,0 +1,13 @@
+<%- include('partials/head') %>
+<%- include('partials/nav', { activePage: '' }) %>
+
+<div class="error-page">
+  <div>
+    <div class="error-page__code"><%= code %></div>
+    <h1 class="error-page__title"><%= title %></h1>
+    <p class="error-page__desc"><%= message %></p>
+    <a href="/" class="btn btn--navy">Return to Home</a>
+  </div>
+</div>
+
+<%- include('partials/footer') %>
