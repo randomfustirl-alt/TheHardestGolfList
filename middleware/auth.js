@@ -1,11 +1,11 @@
 // middleware/auth.js
-const { get } = require('../db/connection');
+const { getUserById } = require('../db/store');
 
 // Attach logged-in user to req.user and res.locals.user on every request
 function attachUser(req, res, next) {
   res.locals.user = null;
   if (req.session && req.session.userId) {
-    const user = get('SELECT id, username, display_name, role, created_at FROM users WHERE id = ?', [req.session.userId]);
+    const user = getUserById(req.session.userId);
     if (user) {
       req.user = user;
       res.locals.user = user;

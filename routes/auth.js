@@ -2,7 +2,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const router = express.Router();
-const { get, insert } = require('../db/connection');
+const { getUserByUsername, createUser } = require('../db/store');
 
 // GET /login
 router.get('/login', (req, res) => {
@@ -23,7 +23,7 @@ router.post('/login', async (req, res) => {
     });
   }
 
-  const user = get('SELECT * FROM users WHERE username = ?', [trimUser]);
+  const user = getUserByUsername(trimUser);
   if (!user) {
     return res.render('login', {
       title: 'Sign In — LEVEL/LIST',
@@ -92,7 +92,7 @@ router.post('/register', async (req, res) => {
   }
 
   // Check username availability
-  const existing = get('SELECT id FROM users WHERE username = ?', [trimUser]);
+  const existing = getUserByUsername(trimUser);
   if (existing) {
     return res.render('register', {
       title: 'Join the List — LEVEL/LIST',
@@ -104,10 +104,7 @@ router.post('/register', async (req, res) => {
   // Hash and insert
   const hash = await bcrypt.hash(password, 12);
   const displayName = trimUser.charAt(0).toUpperCase() + trimUser.slice(1);
-  const userId = insert(
-    'INSERT INTO users (username, display_name, password_hash, role) VALUES (?, ?, ?, ?)',
-    [trimUser, displayName, hash, 'user']
-  );
+  const userId = createUser(trimUser, displayName, hash, 'user');
 
   req.session.userId = userId;
   res.redirect('/dashboard');

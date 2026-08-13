@@ -1,0 +1,19 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "listmaker",
+      "display_name": "ListMaker",
+      "password_hash": "$2a$12$kIbENJPVBeAtWibwVoLKF.oEk5OISr30WIcJEqgBdicUthTLcajy.",
+      "role": "admin",
+      "created_at": "2026-08-13T17:41:41.196Z"
+    }
+  ],
+  "levels": [],
+  "completions": [],
+  "nextIds": {
+    "users": 2,
+    "levels": 1,
+    "completions": 1
+  }
+}

@@ -2,32 +2,29 @@
 const express = require('express');
 const router = express.Router();
 const { requireAdmin } = require('../middleware/auth');
-const { get, all, run, insert } = require('../db/connection');
+const {
+  getAllLevels,
+  getAllUsers,
+  getRecentCompletions,
+  getMaxLevelRank,
+  createLevel,
+  getLevelById,
+  updateLevel,
+  deleteLevel,
+  getUserById,
+  createCompletion,
+  deleteCompletion,
+  deleteUser
+} = require('../db/store');
 
 // Protect all admin routes
 router.use(requireAdmin);
 
 // GET /admin
 router.get('/', (req, res) => {
-  const levels = all('SELECT l.*, (SELECT COUNT(*) FROM completions c WHERE c.level_id = l.id) as clear_count FROM levels l ORDER BY l.rank ASC');
-  const players = all(`
-    SELECT u.id, u.username, u.display_name, u.role, u.created_at,
-           COALESCE(SUM(l.points), 0) AS total_points,
-           COUNT(c.id) AS verified_clears
-    FROM users u
-    LEFT JOIN completions c ON c.user_id = u.id
-    LEFT JOIN levels l ON c.level_id = l.id
-    GROUP BY u.id
-    ORDER BY u.display_name ASC
-  `);
-  const recentCompletions = all(`
-    SELECT c.*, u.display_name as player_name, u.username, l.name as level_name, l.points
-    FROM completions c
-    JOIN users u ON c.user_id = u.id
-    JOIN levels l ON c.level_id = l.id
-    ORDER BY c.completed_at DESC
-    LIMIT 20
-  `);
+  const levels = getAllLevels();
+  const players = getAllUsers();
+  const recentCompletions = getRecentCompletions(20);
 
   res.render('admin', {
     title: 'Admin — LEVEL/LIST',
@@ -41,9 +38,7 @@ router.get('/', (req, res) => {
 
 // GET /admin/level/new
 router.get('/level/new', (req, res) => {
-  // Get next available rank
-  const maxRank = get('SELECT MAX(rank) as max FROM levels');
-  const nextRank = maxRank && maxRank.max ? maxRank.max + 1 : 1;
+  const nextRank = getMaxLevelRank() + 1;
 
   res.render('admin-level-form', {
     title: 'New Level — LEVEL/LIST',
@@ -58,8 +53,7 @@ router.post('/level', (req, res) => {
   const { name, rank, difficulty, points, creator, verifier, description } = req.body;
 
   if (!name || !rank || !difficulty || !points || !creator || !verifier) {
-    const maxRank = get('SELECT MAX(rank) as max FROM levels');
-    const nextRank = maxRank && maxRank.max ? maxRank.max + 1 : 1;
+    const nextRank = getMaxLevelRank() + 1;
     return res.render('admin-level-form', {
       title: 'New Level — LEVEL/LIST',
       level: null,
@@ -68,17 +62,7 @@ router.post('/level', (req, res) => {
     });
   }
 
-  // Check rank collision
-  const existing = get('SELECT id FROM levels WHERE rank = ?', [parseInt(rank)]);
-  if (existing) {
-    // Shift all levels with rank >= new rank down by 1
-    run('UPDATE levels SET rank = rank + 1 WHERE rank >= ?', [parseInt(rank)]);
-  }
-
-  insert(
-    'INSERT INTO levels (rank, name, difficulty, points, creator, verifier, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [parseInt(rank), name.trim(), difficulty, parseInt(points), creator.trim(), verifier.trim(), (description || '').trim()]
-  );
+  createLevel({ name, rank, difficulty, points, creator, verifier, description });
 
   req.session.flash = { type: 'success', message: `Level "${name}" added at rank #${rank}.` };
   res.redirect('/admin');
@@ -86,7 +70,7 @@ router.post('/level', (req, res) => {
 
 // GET /admin/level/:id/edit
 router.get('/level/:id/edit', (req, res) => {
-  const level = get('SELECT * FROM levels WHERE id = ?', [req.params.id]);
+  const level = getLevelById(req.params.id);
   if (!level) return res.redirect('/admin');
 
   res.render('admin-level-form', {
@@ -99,7 +83,7 @@ router.get('/level/:id/edit', (req, res) => {
 
 // POST /admin/level/:id
 router.post('/level/:id', (req, res) => {
-  const level = get('SELECT * FROM levels WHERE id = ?', [req.params.id]);
+  const level = getLevelById(req.params.id);
   if (!level) return res.redirect('/admin');
 
   const { name, rank, difficulty, points, creator, verifier, description } = req.body;
@@ -113,23 +97,7 @@ router.post('/level/:id', (req, res) => {
     });
   }
 
-  // If rank changed, handle collision
-  const newRank = parseInt(rank);
-  if (newRank !== level.rank) {
-    const collision = get('SELECT id FROM levels WHERE rank = ? AND id != ?', [newRank, level.id]);
-    if (collision) {
-      if (newRank < level.rank) {
-        run('UPDATE levels SET rank = rank + 1 WHERE rank >= ? AND rank < ? AND id != ?', [newRank, level.rank, level.id]);
-      } else {
-        run('UPDATE levels SET rank = rank - 1 WHERE rank > ? AND rank <= ? AND id != ?', [level.rank, newRank, level.id]);
-      }
-    }
-  }
-
-  run(
-    'UPDATE levels SET rank = ?, name = ?, difficulty = ?, points = ?, creator = ?, verifier = ?, description = ? WHERE id = ?',
-    [newRank, name.trim(), difficulty, parseInt(points), creator.trim(), verifier.trim(), (description || '').trim(), level.id]
-  );
+  updateLevel(level.id, { name, rank, difficulty, points, creator, verifier, description });
 
   req.session.flash = { type: 'success', message: `Level "${name}" updated.` };
   res.redirect('/admin');
@@ -137,12 +105,10 @@ router.post('/level/:id', (req, res) => {
 
 // POST /admin/level/:id/delete
 router.post('/level/:id/delete', (req, res) => {
-  const level = get('SELECT * FROM levels WHERE id = ?', [req.params.id]);
+  const level = getLevelById(req.params.id);
   if (!level) return res.redirect('/admin');
 
-  // Delete completions for this level first
-  run('DELETE FROM completions WHERE level_id = ?', [level.id]);
-  run('DELETE FROM levels WHERE id = ?', [level.id]);
+  deleteLevel(level.id);
 
   req.session.flash = { type: 'success', message: `Level "${level.name}" deleted.` };
   res.redirect('/admin');
@@ -157,25 +123,19 @@ router.post('/completion', (req, res) => {
     return res.redirect('/admin');
   }
 
-  const user = get('SELECT * FROM users WHERE id = ?', [user_id]);
-  const level = get('SELECT * FROM levels WHERE id = ?', [level_id]);
+  const user = getUserById(user_id);
+  const level = getLevelById(level_id);
 
   if (!user || !level) {
     req.session.flash = { type: 'error', message: 'Invalid player or level.' };
     return res.redirect('/admin');
   }
 
-  // Check for duplicate
-  const existing = get('SELECT id FROM completions WHERE user_id = ? AND level_id = ?', [user_id, level_id]);
-  if (existing) {
+  const result = createCompletion(user.id, level.id, 'ListMaker', notes);
+  if (!result) {
     req.session.flash = { type: 'error', message: `${user.display_name} has already completed "${level.name}".` };
     return res.redirect('/admin');
   }
-
-  insert(
-    'INSERT INTO completions (user_id, level_id, verified_by, notes) VALUES (?, ?, ?, ?)',
-    [user_id, level_id, 'ListMaker', (notes || '').trim()]
-  );
 
   req.session.flash = { type: 'success', message: `Verified clear of "${level.name}" added for ${user.display_name}. (+${level.points} pts)` };
   res.redirect('/admin');
@@ -183,31 +143,23 @@ router.post('/completion', (req, res) => {
 
 // POST /admin/completion/:id/revoke
 router.post('/completion/:id/revoke', (req, res) => {
-  const completion = get(`
-    SELECT c.*, u.display_name as player_name, l.name as level_name, l.points
-    FROM completions c
-    JOIN users u ON c.user_id = u.id
-    JOIN levels l ON c.level_id = l.id
-    WHERE c.id = ?
-  `, [req.params.id]);
+  const comp = deleteCompletion(req.params.id);
 
-  if (!completion) {
+  if (!comp) {
     req.session.flash = { type: 'error', message: 'Completion not found.' };
     return res.redirect('/admin');
   }
 
-  run('DELETE FROM completions WHERE id = ?', [completion.id]);
-
   req.session.flash = {
     type: 'success',
-    message: `Revoked "${completion.level_name}" clear for ${completion.player_name}. (-${completion.points} pts)`,
+    message: `Revoked "${comp.level_name}" clear for ${comp.player_name}. (-${comp.points} pts)`,
   };
   res.redirect('/admin');
 });
 
 // POST /admin/user/:id/delete — Delete a user account and all their records
 router.post('/user/:id/delete', (req, res) => {
-  const targetUser = get('SELECT * FROM users WHERE id = ?', [req.params.id]);
+  const targetUser = getUserById(req.params.id);
 
   if (!targetUser) {
     req.session.flash = { type: 'error', message: 'User not found.' };
@@ -220,9 +172,7 @@ router.post('/user/:id/delete', (req, res) => {
     return res.redirect('/admin');
   }
 
-  // Delete all user's completions and user profile
-  run('DELETE FROM completions WHERE user_id = ?', [targetUser.id]);
-  run('DELETE FROM users WHERE id = ?', [targetUser.id]);
+  deleteUser(targetUser.id);
 
   req.session.flash = {
     type: 'success',

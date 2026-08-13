@@ -1,11 +1,11 @@
 // routes/levels.js
 const express = require('express');
 const router = express.Router();
-const { get, all } = require('../db/connection');
+const { getLevelById, getCompletionsForLevel } = require('../db/store');
 
 // GET /level/:id
 router.get('/level/:id', (req, res) => {
-  const level = get('SELECT * FROM levels WHERE id = ?', [req.params.id]);
+  const level = getLevelById(req.params.id);
   if (!level) {
     return res.status(404).render('error', {
       title: 'Level Not Found',
@@ -14,13 +14,7 @@ router.get('/level/:id', (req, res) => {
     });
   }
 
-  const completions = all(`
-    SELECT c.*, u.username, u.display_name
-    FROM completions c
-    JOIN users u ON c.user_id = u.id
-    WHERE c.level_id = ?
-    ORDER BY c.completed_at ASC
-  `, [level.id]);
+  const completions = getCompletionsForLevel(level.id);
 
   res.render('level-detail', {
     title: `${level.name} — LEVEL/LIST`,

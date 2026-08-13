@@ -2,8 +2,7 @@
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
-const { getDb } = require('./db/connection');
-const { initSchema } = require('./db/schema');
+const { initDb } = require('./db/store');
 const attachHelpers = require('./middleware/helpers');
 const { attachUser } = require('./middleware/auth');
 
@@ -21,7 +20,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// Sessions (memory store — fine for single-server deployment)
+// Sessions
 app.use(session({
   secret: 'levellist-secret-key-change-in-production',
   resave: false,
@@ -63,11 +62,10 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Boot: init DB then start server
+// Boot: init DB store then start server
 (async () => {
   try {
-    await getDb();
-    await initSchema();
+    await initDb();
     app.listen(PORT, () => {
       console.log(`\n  LEVEL/LIST running at http://localhost:${PORT}\n`);
       console.log(`  Admin login: listmaker / !ListMaker69$`);
