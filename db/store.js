@@ -331,10 +331,24 @@ async function createLevel({ rank, name, difficulty, points, creator, verifier, 
   const r = Number(rank);
 
   if (isTurso) {
-    await turso.execute({
-      sql: 'UPDATE levels SET rank = rank + 1 WHERE rank >= ?',
-      args: [r]
-    });
+    // Check if the requested rank position is already occupied
+    const existing = await turso.execute({ sql: 'SELECT id FROM levels WHERE rank = ?', args: [r] });
+    if (existing.rows.length > 0) {
+      // Shift existing ranks starting from the bottom up to avoid UNIQUE constraint collisions
+      const levelsToShift = await turso.execute({
+        sql: 'SELECT id, rank FROM levels WHERE rank >= ? ORDER BY rank DESC',
+        args: [r]
+      });
+
+      const batchStatements = levelsToShift.rows.map(lvl => ({
+        sql: 'UPDATE levels SET rank = rank + 1 WHERE id = ?',
+        args: [lvl.id]
+      }));
+
+      if (batchStatements.length > 0) {
+        await turso.batch(batchStatements);
+      }
+    }
 
     const res = await turso.execute({
       sql: 'INSERT INTO levels (rank, name, difficulty, points, creator, verifier, description) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id',
@@ -374,16 +388,27 @@ async function updateLevel(id, { rank, name, difficulty, points, creator, verifi
     if (!current) return false;
 
     if (newRank !== current.rank) {
+      let levelsToShift;
       if (newRank < current.rank) {
-        await turso.execute({
-          sql: 'UPDATE levels SET rank = rank + 1 WHERE rank >= ? AND rank < ? AND id != ?',
+        levelsToShift = await turso.execute({
+          sql: 'SELECT id, rank FROM levels WHERE rank >= ? AND rank < ? AND id != ? ORDER BY rank DESC',
           args: [newRank, current.rank, levelId]
         });
+        const batchStatements = levelsToShift.rows.map(lvl => ({
+          sql: 'UPDATE levels SET rank = rank + 1 WHERE id = ?',
+          args: [lvl.id]
+        }));
+        if (batchStatements.length > 0) await turso.batch(batchStatements);
       } else {
-        await turso.execute({
-          sql: 'UPDATE levels SET rank = rank - 1 WHERE rank > ? AND rank <= ? AND id != ?',
+        levelsToShift = await turso.execute({
+          sql: 'SELECT id, rank FROM levels WHERE rank > ? AND rank <= ? AND id != ? ORDER BY rank ASC',
           args: [current.rank, newRank, levelId]
         });
+        const batchStatements = levelsToShift.rows.map(lvl => ({
+          sql: 'UPDATE levels SET rank = rank - 1 WHERE id = ?',
+          args: [lvl.id]
+        }));
+        if (batchStatements.length > 0) await turso.batch(batchStatements);
       }
     }
 
