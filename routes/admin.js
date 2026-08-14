@@ -14,7 +14,8 @@ const {
   getUserById,
   createCompletion,
   deleteCompletion,
-  deleteUser
+  deleteUser,
+  updateUserRole
 } = require('../db/store');
 
 // Protect all admin routes
@@ -179,6 +180,32 @@ router.post('/user/:id/delete', async (req, res) => {
   req.session.flash = {
     type: 'success',
     message: `User account "${targetUser.display_name}" (@${targetUser.username}) and all associated records deleted.`,
+  };
+  res.redirect('/admin');
+});
+
+// POST /admin/user/:id/toggle-admin — Grant or revoke admin role
+router.post('/user/:id/toggle-admin', async (req, res) => {
+  const targetUser = await getUserById(req.params.id);
+
+  if (!targetUser) {
+    req.session.flash = { type: 'error', message: 'User not found.' };
+    return res.redirect('/admin');
+  }
+
+  // Prevent demoting primary ListMaker account
+  if (targetUser.username === 'listmaker') {
+    req.session.flash = { type: 'error', message: 'The primary ListMaker account role cannot be changed.' };
+    return res.redirect('/admin');
+  }
+
+  const newRole = targetUser.role === 'admin' ? 'user' : 'admin';
+  await updateUserRole(targetUser.id, newRole);
+
+  const actionText = newRole === 'admin' ? 'granted Administrator permissions to' : 'revoked Administrator permissions from';
+  req.session.flash = {
+    type: 'success',
+    message: `Successfully ${actionText} ${targetUser.display_name} (@${targetUser.username}).`,
   };
   res.redirect('/admin');
 });

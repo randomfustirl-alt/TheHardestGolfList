@@ -219,6 +219,23 @@ async function createUser(username, displayName, passwordHash, role = 'user') {
   return newUser.id;
 }
 
+async function updateUserRole(id, role) {
+  const uid = Number(id);
+  if (isTurso) {
+    await turso.execute({
+      sql: 'UPDATE users SET role = ? WHERE id = ?',
+      args: [role, uid]
+    });
+    return;
+  }
+  ensureDataFile();
+  const user = memoryData.users.find(u => u.id === uid);
+  if (user) {
+    user.role = role;
+    saveData();
+  }
+}
+
 async function deleteUser(id) {
   const uid = Number(id);
   if (isTurso) {
@@ -711,6 +728,7 @@ module.exports = {
   getUserByUsername,
   getAllUsers,
   createUser,
+  updateUserRole,
   deleteUser,
   getLevelById,
   getAllLevels,
