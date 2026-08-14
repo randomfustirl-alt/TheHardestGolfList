@@ -173,15 +173,19 @@
                 <td><%= p.verified_clears %> clears</td>
                 <td style="text-align: right;">
                   <div class="actions" style="justify-content: flex-end;">
-                    <% if (p.username !== 'listmaker' && p.id !== user.id) { %>
-                      <form action="/admin/user/<%= p.id %>/toggle-admin" method="POST" onsubmit="return confirm('Change admin status for @<%= p.username %>?');" style="display: inline;">
-                        <button type="submit" class="btn btn--edit">
-                          <%= p.role === 'admin' ? 'Revoke Admin' : 'Make Admin' %>
-                        </button>
-                      </form>
-                      <form action="/admin/user/<%= p.id %>/delete" method="POST" onsubmit="return confirm('PERMANENT ACTION: Delete user account @<%= p.username %> and ALL their completion data?');" style="display: inline;">
-                        <button type="submit" class="btn btn--danger">Delete Account & Data</button>
-                      </form>
+                    <% if (p.username !== 'listmaker') { %>
+                      <% if (p.id !== user.id) { %>
+                        <form action="/admin/user/<%= p.id %>/toggle-admin" method="POST" onsubmit="return confirm('Change admin status for @<%= p.username %>?');" style="display: inline;">
+                          <button type="submit" class="btn btn--edit">
+                            <%= p.role === 'admin' ? 'Revoke Admin' : 'Make Admin' %>
+                          </button>
+                        </form>
+                        <form action="/admin/user/<%= p.id %>/delete" method="POST" onsubmit="return confirm('PERMANENT ACTION: Delete user account @<%= p.username %> and ALL their completion data?');" style="display: inline;">
+                          <button type="submit" class="btn btn--danger">Delete Account & Data</button>
+                        </form>
+                      <% } else { %>
+                        <span class="text-faint" style="font-size: 0.75rem;">(Your Account)</span>
+                      <% } %>
                     <% } else { %>
                       <span class="text-faint" style="font-size: 0.75rem;">Primary Admin (Protected)</span>
                     <% } %>
